@@ -1,0 +1,6 @@
+#!/bin/bash
+if [[ -z "$1" ]]; then
+	echo "Usage $0 <container>"
+	exit 1
+fi
+exec docker inspect -f "{{ .NetworkSettings.IPAddress }}" "$1"

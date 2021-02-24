@@ -1,0 +1,56 @@
+#!/bin/bash
+export PROJECT_FOLDER="$(dirname $(pwd))"
+export DB_DOCKER_NAME="$(basename ${PROJECT_FOLDER})DB"
+export WEB_DOCKER_NAME="$(basename ${PROJECT_FOLDER})"
+#export PROJECT_FOLDER="/home/user/projects/my-new-project"
+#export PROJECT_NAME='my-new-project'
+#export DB_DOCKER_NAME="${PROJECT_NAME})_db"
+#export WEB_DOCKER_NAME="${PROJECT_NAME}"
+
+export MYSQL_DBFILES_IN="${PROJECT_FOLDER}/.DB/mysql/"
+export WEB_ROOT="${PROJECT_FOLDER}"
+export XDEBUG_HOST=172.17.0.1
+
+
+STOPFILE="$(dirname $0)/projectStop"
+echo "#!/bin/bash" > ${STOPFILE}
+chmod 770 ${STOPFILE}
+
+MAILHOG_RUNNING=$(docker ps | grep mailhog | wc -l)
+if [ "${MAILHOG_RUNNING}" == "0" ]; then
+    docker run --detach --rm --name mailhog mailhog/mailhog
+    echo "docker stop mailhog" >> ${STOPFILE}
+else
+    echo "MailHog already running"
+fi
+
+docker run --detach --rm \
+        --mount type=bind,source="${MYSQL_DBFILES_IN}",destination=/var/lib/mysql \
+        --name "${DB_DOCKER_NAME}" mysql/mysql-server:5.7 &&
+        echo "docker stop ${DB_DOCKER_NAME}" >> ${STOPFILE}
+
+docker run --detach --rm --env XDEBUG_HOST \
+        --mount type=bind,source="${PROJECT_FOLDER}",destination=/var/www/html \
+        --mount type=bind,source="${PROJECT_FOLDER}/webdocker/etc/apache2/conf-available/",destination=/etc/apache2/conf-enabled \
+        --mount type=bind,source="${PROJECT_FOLDER}/webdocker/etc/apache2/sites-available/",destination=/etc/apache2/sites-enabled \
+        --workdir /tmp/ \
+        --link "${DB_DOCKER_NAME}" \
+        --link "mailhog" \
+        --name "${WEB_DOCKER_NAME}" webdocker:latest &&
+        echo "docker stop ${WEB_DOCKER_NAME}" >> ${STOPFILE}
+
+sleep 2
+sudo -p "Enter sudo password to update IPs in /etc/hosts> " echo
+sudo sed -ri '/mailhog/d' /etc/hosts
+echo "$(dockerip mailhog) mailhog mailhog.local" | sudo tee -a '/etc/hosts'
+sudo sed -ri "/${WEB_DOCKER_NAME}/d" /etc/hosts
+echo "$(dockerip ${WEB_DOCKER_NAME}) ${WEB_DOCKER_NAME} ${WEB_DOCKER_NAME}.local" | sudo tee -a '/etc/hosts'
+sudo sed -ri "/${DB_DOCKER_NAME}/d" /etc/hosts
+echo "$(dockerip ${DB_DOCKER_NAME}) ${DB_DOCKER_NAME} ${DB_DOCKER_NAME}.local" | sudo tee -a '/etc/hosts'
+
+echo "/etc/hosts on ${WEB_DOCKER_NAME}:"
+#docker exec -t ${WEB_DOCKER_NAME} php --version
+#docker exec -t ${WEB_DOCKER_NAME} php -r 'phpinfo()'
+#docker ps
+
+echo "To stop run '${STOPFILE}'"
