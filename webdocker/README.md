@@ -1,6 +1,6 @@
-#A docker for SilverStripe 4
+# A docker for SilverStripe 4
 
-##Purpose
+## Purpose
 This folder holds the Dockerfile for an apache-php image that you can use with the SilverStripe 4 framework/cms, as well as some scripts to keep working with it easy.
  
 The projectStart script starts a Mailhog instance (if not already started), a MySQL server and an apache web server with php.
